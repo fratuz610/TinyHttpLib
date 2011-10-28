@@ -380,7 +380,7 @@ public class HttpCall extends AbstractHttpCall {
       
       // sets for monitoring
       bytesDownloadTotal.set(httpResponse.responseLength);
-
+      
       switch(responseType) {
         case AUTO:
           if(isTextMimeType(httpResponse.responseType))
@@ -390,8 +390,10 @@ public class HttpCall extends AbstractHttpCall {
           break;
         case FILE:
           readResponseAsFile(urlConn);
+          break;
         case TEXT:
           readResponseAsText(urlConn);
+          break;
       }
     }
     
