@@ -66,8 +66,7 @@ public abstract class AbstractHttpCall implements Callable<Void> {
   public final AtomicLong bytesDownloadSpeed = new AtomicLong(0);
   
   /**
-   * The type of response to expect from the server. See {@link <it.holiday69.tinyhttp.enume.ResponseType> ResponseType} 
-   * It defaults to ResponseType.TEXT
+   * The type of response to expect from the server.
    */
   public ResponseType responseType = ResponseType.TEXT;
   

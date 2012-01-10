@@ -5,6 +5,7 @@
 
 package it.holiday69.tinyhttp.vo;
 
+import it.holiday69.tinyhttp.vo.response.ResponseBody;
 import java.io.File;
 import java.util.LinkedList;
 import java.util.List;
@@ -20,10 +21,8 @@ public class HttpResponse {
   public String responseType;
   public long responseLength;
   
-  public final List<HttpParam> responseHeaderList = new LinkedList<HttpParam>();
+  public final List<KeyValuePair> responseHeaderList = new LinkedList<KeyValuePair>();
   
-  public String textResponse;
-  
-  public File fileResponse;
+  public ResponseBody responseBody;
   
 }

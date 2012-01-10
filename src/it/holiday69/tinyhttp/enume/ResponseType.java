@@ -9,5 +9,5 @@ package it.holiday69.tinyhttp.enume;
  * @author fratuz610
  */
 public enum ResponseType {
-  AUTO, FILE, TEXT
+  AUTO, TEXT, FILE, BYTE_ARRAY;
 }

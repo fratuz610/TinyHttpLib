@@ -7,21 +7,25 @@ package it.holiday69.tinyhttp.task;
 import it.holiday69.tinyhttp.AbstractHttpCall;
 import it.holiday69.tinyhttp.utils.Base64;
 import it.holiday69.tinyhttp.utils.DebugHelper;
+import it.holiday69.tinyhttp.utils.ExceptionUtils;
 import it.holiday69.tinyhttp.utils.IOHelper;
 import it.holiday69.tinyhttp.utils.RandomHelper;
 import it.holiday69.tinyhttp.utils.StringUtils;
 import it.holiday69.tinyhttp.vo.HttpMethod;
 import it.holiday69.tinyhttp.vo.HttpRequest;
-import it.holiday69.tinyhttp.vo.HttpParam;
+import it.holiday69.tinyhttp.vo.KeyValuePair;
 import it.holiday69.tinyhttp.vo.HttpResponse;
 import it.holiday69.tinyhttp.vo.ProxyObject;
 
+import it.holiday69.tinyhttp.vo.request.FileUploadRequestItem;
+import it.holiday69.tinyhttp.vo.request.RequestItem;
+import it.holiday69.tinyhttp.vo.request.KeyValueRequestItem;
+import it.holiday69.tinyhttp.vo.response.ByteArrayResponseBody;
+import it.holiday69.tinyhttp.vo.response.FileResponseBody;
+import it.holiday69.tinyhttp.vo.response.TextResponseBody;
 import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.FileNameMap;
 import java.net.HttpURLConnection;
@@ -42,7 +46,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class HttpCall extends AbstractHttpCall {
     
-    private final int DEFAULT_BUFFER_SIZE = 1024 * 4;
     private final String CR_LF = "\r\n";
     
     public HttpCall(HttpRequest httpReq) throws Exception {
@@ -62,7 +65,9 @@ public class HttpCall extends AbstractHttpCall {
       debug.clear();
       
       httpResponse = new HttpResponse();
-      httpResponse.responseCode = 500;
+      httpResponse.responseCode = -1;
+      
+      AtomicBoolean interruptFlag = new AtomicBoolean(false);
       
       Thread timeoutThread = null;
     
@@ -101,14 +106,13 @@ public class HttpCall extends AbstractHttpCall {
 
         // setting custom request headers
         if(httpRequest.requestHeaderList != null && !httpRequest.requestHeaderList.isEmpty()) {
-          for(HttpParam requestHeaderObj : httpRequest.requestHeaderList) {
+          for(KeyValuePair requestHeaderObj : httpRequest.requestHeaderList) {
             urlConn.setRequestProperty(requestHeaderObj.key, requestHeaderObj.value);
             debug.log("Sending request header: " + requestHeaderObj.key + " => " + requestHeaderObj.value);
           }
         }
 
         // starts the timeout thread
-        AtomicBoolean interruptFlag = new AtomicBoolean(false);
         timeoutThread = new Thread(new HttpTimeoutTask(urlConn, httpRequest.timeout, interruptFlag));
         timeoutThread.start();
         
@@ -123,6 +127,7 @@ public class HttpCall extends AbstractHttpCall {
         
         // we read the response code
         httpResponse.responseCode = urlConn.getResponseCode();
+        
         debug.log("Retrieving response code: " + httpResponse.responseCode);
         
         // we read the response headers
@@ -143,7 +148,7 @@ public class HttpCall extends AbstractHttpCall {
           
           // retrieve the location response header
           String locationValue = null;
-          for(HttpParam responseHeader : httpResponse.responseHeaderList) {
+          for(KeyValuePair responseHeader : httpResponse.responseHeaderList) {
             System.out.println(responseHeader.key + " => " + responseHeader.value);
             if("location".equalsIgnoreCase(responseHeader.key))
               locationValue = responseHeader.value; 
@@ -159,10 +164,17 @@ public class HttpCall extends AbstractHttpCall {
         }
         
       } catch (MalformedURLException e) {
+        debug.log("MalformedURLException: " + ExceptionUtils.getFullExceptionInfo(e));
         throw new Exception("MalformedURLException: " + e.getMessage());
       } catch (IOException e) {
+        
+        if(interruptFlag.get())
+          throw new IOException("The http call timed out: " + httpRequest.timeout + " millisec");
+        
+        debug.log("IOException: " + ExceptionUtils.getFullExceptionInfo(e));
         throw new Exception("IOException: " + e.getMessage());
       } catch (Throwable e) {
+        debug.log("Generic Exception: " + ExceptionUtils.getFullExceptionInfo(e));
         throw new Exception("Exception: " + e.getMessage());
       } finally {
         
@@ -170,11 +182,10 @@ public class HttpCall extends AbstractHttpCall {
         try { timeoutThread.interrupt(); } catch(Throwable th) { }
         
         // sets the call as completed
-        callCompleted = true;
-        
-        return null;
+        callCompleted = true; 
       }
       
+      return null;
     }
   
     private String getFinalURL(HttpRequest httpRequest) throws Exception {
@@ -186,9 +197,15 @@ public class HttpCall extends AbstractHttpCall {
         if(httpRequest.requestParamList != null && !httpRequest.requestParamList.isEmpty()) {
           // compose the URL for the get method
           List<String> getParamList = new LinkedList<String>();
-          int cnt = 0;
-          for(HttpParam getParam: httpRequest.requestParamList)
-            getParamList.add(URLEncoder.encode(getParam.key, "UTF-8")+"="+URLEncoder.encode(getParam.value, "UTF-8"));
+          for(RequestItem getParam: httpRequest.requestParamList) {
+            
+            if(!(getParam instanceof KeyValueRequestItem))
+              throw new Exception("Unable to send non key/value pairs in a GET or DELETE call");
+            
+            KeyValueRequestItem keyValueReqItem = (KeyValueRequestItem) getParam;
+            
+            getParamList.add(URLEncoder.encode(keyValueReqItem.key, "UTF-8")+"="+URLEncoder.encode(keyValueReqItem.value, "UTF-8"));
+          }
 
           finalURL += "?" + StringUtils.join("&", getParamList.toArray(new String[0]));
         }
@@ -215,33 +232,46 @@ public class HttpCall extends AbstractHttpCall {
       
       // we send the POST data here
       urlConn.setDoOutput(true);
-
-      if(httpRequest.uploadFileList.isEmpty()) {
-        // normal post call
-        sendParameters(urlConn, httpRequest);
-      } else {
-        // file upload call
-        uploadFiles(urlConn, httpRequest);
+      
+      // we determine if the request has only Key/Value parameters
+      
+      boolean pureKeyValueRequest = true;
+      
+      for(RequestItem reqItem : httpRequest.requestParamList) {
+        if(reqItem instanceof FileUploadRequestItem)
+          pureKeyValueRequest = false;
       }
+      
+      if(pureKeyValueRequest)
+        sendFormUrlEncodedRequest(urlConn, httpRequest);
+      else
+        sendMultipartFormDataRequest(urlConn, httpRequest);
       
     }
     
-    private void sendParameters(HttpURLConnection urlConn, HttpRequest httpRequest) throws Exception {
+    private void sendFormUrlEncodedRequest(HttpURLConnection urlConn, HttpRequest httpRequest) throws Exception {
       
       String postData = "";
 
       if(httpRequest.requestParamList != null && !httpRequest.requestParamList.isEmpty()) {
         // compose the URL for the get method
-        List<String> getParamList = new LinkedList<String>();
-        for(HttpParam getParam: httpRequest.requestParamList) {
-          if(getParam.value.length() > 100)
-            debug.log("Sending body parameter: " + getParam.key + " => " + getParam.value.substring(0, 100));
+        List<String> postParamList = new LinkedList<String>();
+        for(RequestItem reqItem: httpRequest.requestParamList) {
+          
+          if(!(reqItem instanceof KeyValueRequestItem))
+            throw new Exception("Internal Error, unable to process a non Key/Value request item in a www-form-urlencoded request");
+          
+          KeyValueRequestItem postParam = (KeyValueRequestItem) reqItem;
+          
+          if(postParam.value.length() > 100)
+            debug.log("Sending body parameter: " + postParam.key + " => " + postParam.value.substring(0, 100));
           else
-            debug.log("Sending body parameter: " + getParam.key + " => " + getParam.value);
-          getParamList.add(URLEncoder.encode(getParam.key, "UTF-8")+"="+URLEncoder.encode(getParam.value, "UTF-8"));
+            debug.log("Sending body parameter: " + postParam.key + " => " + postParam.value);
+          
+          postParamList.add(URLEncoder.encode(postParam.key, "UTF-8")+"="+URLEncoder.encode(postParam.value, "UTF-8"));
         }
 
-        postData = StringUtils.join("&", getParamList.toArray(new String[0]));
+        postData = StringUtils.join("&", postParamList.toArray(new String[0]));
       }
 
       // updates for monitoring
@@ -264,41 +294,74 @@ public class HttpCall extends AbstractHttpCall {
       bytesUploadCount.set(postData.length());
     }
     
-    private void uploadFiles(HttpURLConnection urlConn, HttpRequest httpRequest) throws Exception {
+    private void sendMultipartFormDataRequest(HttpURLConnection urlConn, HttpRequest httpRequest) throws Exception {
             
       String randomDelimiter = new RandomHelper().getRandomDelimiter();
       
-      urlConn.setRequestProperty("Content-Type", "multipart/form-data; boundary=---------------------------" + randomDelimiter); 
+      urlConn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + randomDelimiter); 
 
+      // let's compute content length
+      
       List<HttpUploadObject> httpUploadList = new LinkedList<HttpUploadObject>();
       
       long aggregateContentLength = 0;
       
-      for(File fileToUpload : httpRequest.uploadFileList) {
+      for(RequestItem reqItem : httpRequest.requestParamList) {
         
         HttpUploadObject obj = new HttpUploadObject();
         
-        FileNameMap fileNameMap = URLConnection.getFileNameMap();
-        String mimeType = fileNameMap.getContentTypeFor(fileToUpload.getAbsolutePath());
+        if(reqItem instanceof KeyValueRequestItem) {
+          
+          KeyValueRequestItem keyValueReqItem = (KeyValueRequestItem) reqItem;
+          
+          debug.log("Processing form data request item: " + keyValueReqItem.key + " => " + keyValueReqItem.value);
+          
+          // creates the message header
+          obj.headerMessage = ""; 
+          obj.headerMessage += "--" + randomDelimiter + CR_LF; 
+          obj.headerMessage += "Content-Disposition: form-data; name=\""+keyValueReqItem.key+"\""+ CR_LF;
+          obj.headerMessage += CR_LF;
+          obj.headerMessage += keyValueReqItem.value + CR_LF;
+          
+          //obj.footerMessage = CR_LF + "--" + randomDelimiter + CR_LF;
+          
+          aggregateContentLength += obj.headerMessage.length() + keyValueReqItem.value.length();
+          
+        } else if(reqItem instanceof FileUploadRequestItem) {
+          
+          FileUploadRequestItem uploadReqItem = (FileUploadRequestItem) reqItem;
+          
+          debug.log("Processing FileUpload request item: " + uploadReqItem.getName());
+          
+          FileNameMap fileNameMap = URLConnection.getFileNameMap();
+          String mimeType = fileNameMap.getContentTypeFor(uploadReqItem.getName());
 
-        if(mimeType == null) mimeType = "application/octet-stream";
+          if(mimeType == null) mimeType = "application/octet-stream";
+          
+          // creates the message header
+          obj.headerMessage = ""; 
+          obj.headerMessage += "--" + randomDelimiter + CR_LF; 
+          obj.headerMessage += "Content-Disposition: form-data; name=\"uploadedfile\"; filename=\""+uploadReqItem.getName()+"\"" + CR_LF;
+          obj.headerMessage += "Content-Type: " + mimeType + CR_LF; 
+          obj.headerMessage += "Content-Transfer-Encoding: binary"+ CR_LF; 
+          obj.headerMessage += CR_LF;
 
-        // creates the message header
-        obj.headerMessage = ""; 
-        obj.headerMessage += "-----------------------------" + randomDelimiter + CR_LF; 
-        obj.headerMessage += "Content-Disposition: form-data; name=\"uploadedfile\"; filename=\""+fileToUpload.getName()+"\"" + CR_LF;
-        obj.headerMessage += "Content-Type: " + mimeType + CR_LF; 
-        obj.headerMessage += CR_LF; 
-        
-        // creates the footer header
-        obj.footerMessage = CR_LF + "-----------------------------"+randomDelimiter+"--" + CR_LF;
-        
-        obj.fileToUpload = fileToUpload;
-        
-        aggregateContentLength += obj.headerMessage.length() + obj.footerMessage.length() + fileToUpload.length();
+          // creates the message footer
+          //obj.footerMessage = CR_LF + "--" + randomDelimiter + CR_LF;
+
+          obj.itemToUpload = uploadReqItem;
+
+          aggregateContentLength += obj.headerMessage.length() + uploadReqItem.getSize();
+
+        }
         
         httpUploadList.add(obj);
+        
       }
+      
+      String footerMessage = CR_LF + "--" + randomDelimiter + "--";
+      
+      aggregateContentLength += footerMessage.length();
       
       // might not need to specify the content-length when sending chunked data. 
       urlConn.setRequestProperty("Content-Length", "" + aggregateContentLength); 
@@ -316,31 +379,63 @@ public class HttpCall extends AbstractHttpCall {
       
         for(HttpUploadObject uploadObject : httpUploadList) {
           
-          debug.log("Uploading file " + uploadObject.fileToUpload.getAbsolutePath());
-          
-          // writes it all out
+          // writes them all out
           output = urlConn.getOutputStream(); 
+            
+          if(uploadObject.itemToUpload instanceof FileUploadRequestItem) {
+            
+            FileUploadRequestItem fileUploadReqItem = (FileUploadRequestItem) uploadObject.itemToUpload;
+            
+            debug.log("Uploading file item " + fileUploadReqItem.getName());
+            
+            // let's write the header
+            output.write(uploadObject.headerMessage.getBytes()); 
 
-          // let's write the header
-          output.write(uploadObject.headerMessage.getBytes()); 
+            output.flush(); 
+            
+            bytesUploadCount.addAndGet(uploadObject.headerMessage.length());
+            
+            // let's write the body
+            
+            new IOHelper().copy(fileUploadReqItem.getInputStream(), output, bytesUploadCount, bytesUploadSpeed);
+            
+            output.flush(); 
+            
+            debug.log("File data for "+ fileUploadReqItem.getName() +" uploaded");
+            
+          } else if(uploadObject.itemToUpload instanceof KeyValueRequestItem) {
+            
+            KeyValueRequestItem keyValueReqItem = (KeyValueRequestItem) uploadObject.itemToUpload;
+            
+            debug.log("Uploading form data item " + keyValueReqItem.key);
+            
+            // let's write the header
+            output.write(uploadObject.headerMessage.getBytes()); 
 
-          bytesUploadCount.addAndGet(uploadObject.headerMessage.length());
-
-          InputStream input = new FileInputStream(uploadObject.fileToUpload);
+            output.flush(); 
+            
+            bytesUploadCount.addAndGet(uploadObject.headerMessage.length());
+            
+            // let's write the body
+            output.write(keyValueReqItem.value.getBytes()); 
+            
+            bytesUploadCount.addAndGet(keyValueReqItem.value.length());
+            
+            output.flush(); 
+            
+            debug.log("Form data item "+ keyValueReqItem.key +" uploaded");
+          }
           
-          new IOHelper().copy(input, output, bytesUploadCount, bytesUploadSpeed);
-          
-          // let's write the footer
-          output.write(uploadObject.footerMessage.getBytes()); 
-
-          // updates for monitoring
-          bytesUploadCount.addAndGet(uploadObject.footerMessage.length());
-
-          output.flush(); 
-          
-          debug.log(uploadObject.fileToUpload.getAbsolutePath() + " uploaded");
-
         }
+        
+        // let's write the footer
+        output.write(footerMessage.getBytes()); 
+
+        // updates for monitoring
+        bytesUploadCount.set(bytesUploadTotal.get());
+
+        debug.log("Multipart upload complete");
+        
       } finally {
         
         if(output != null) output.close();
@@ -349,8 +444,7 @@ public class HttpCall extends AbstractHttpCall {
     
     private static class HttpUploadObject {
       private String headerMessage;
-      private String footerMessage;
-      private File fileToUpload;
+      private RequestItem itemToUpload;
     }
     
     private void readResponseHeaders(HttpURLConnection urlConn, HttpResponse httpResponse) {
@@ -359,7 +453,7 @@ public class HttpCall extends AbstractHttpCall {
 
       if(headerMap.size() > 0) {
         for(String key : headerMap.keySet()) {
-          HttpParam responseHeaderItem = new HttpParam();
+          KeyValuePair responseHeaderItem = new KeyValuePair();
           responseHeaderItem.key = key;
           responseHeaderItem.value = headerMap.get(key).get(0);
           httpResponse.responseHeaderList.add(responseHeaderItem);
@@ -384,50 +478,54 @@ public class HttpCall extends AbstractHttpCall {
       switch(responseType) {
         case AUTO:
           if(isTextMimeType(httpResponse.responseType))
-            readResponseAsText(urlConn);
+            generateTextResponse(urlConn);
           else
-            readResponseAsFile(urlConn);
+            generateByteArrayResponse(urlConn);
+          break;
+        case BYTE_ARRAY:
+          generateByteArrayResponse(urlConn);
           break;
         case FILE:
-          readResponseAsFile(urlConn);
+          generateFileResponse(urlConn);
           break;
         case TEXT:
-          readResponseAsText(urlConn);
+          generateTextResponse(urlConn);
           break;
       }
-    }
-    
-    private void readResponseAsFile(HttpURLConnection urlConn) throws Exception {
-      
-      debug.log("Downloading file...");
-
-      FileOutputStream out = null;
       
       try {
-        // file response
-        File retFile = File.createTempFile("ywc", "");
-        out = new FileOutputStream(retFile);
-
-        new IOHelper().copy(urlConn.getInputStream(), out, bytesDownloadCount, bytesDownloadSpeed);
-
-        out.flush();
-
-        httpResponse.fileResponse = retFile;
-
-        debug.log("File downloaded to " + retFile.getAbsolutePath());
+        new IOHelper().copy(urlConn.getInputStream(), httpResponse.responseBody.getOutputStream(), bytesDownloadCount, bytesDownloadSpeed);
       } finally {
-        if(out != null) out.close();
+        httpResponse.responseBody.getOutputStream().close();
       }
+      
+      debug.log("Data download complete");
     }
     
-    private void readResponseAsText(HttpURLConnection urlConn) throws Exception {
+    
+    private void generateFileResponse(HttpURLConnection urlConn) throws Exception {
+      
+      // file response
+      File tempFile = File.createTempFile(_tempFilePrefix, "");
+
+      debug.log("Downloading to file: " + tempFile.getAbsolutePath());
+      
+      httpResponse.responseBody = new FileResponseBody(tempFile);
+      
+    }
+    
+    private void generateByteArrayResponse(HttpURLConnection urlConn) throws Exception {
+      
+      debug.log("Downloading file to byte array...");
+
+      httpResponse.responseBody = new ByteArrayResponseBody();
+    }
+    
+    private void generateTextResponse(HttpURLConnection urlConn) throws Exception {
       
       debug.log("Reading text response...");
 
-      // text response
-      httpResponse.textResponse = new IOHelper().readAsString( urlConn.getInputStream(), bytesDownloadCount, bytesDownloadSpeed);
-
-      debug.log("Text response read");
+      httpResponse.responseBody = new TextResponseBody(); 
     }
     
     public String getCallLog() {
@@ -438,5 +536,11 @@ public class HttpCall extends AbstractHttpCall {
       return (mimeType.toLowerCase().indexOf("text") != -1 || 
               mimeType.toLowerCase().indexOf("xml") != -1 || 
               mimeType.toLowerCase().indexOf("json") != -1);
+    }
+    
+    private static String _tempFilePrefix = "h69";
+    
+    public static synchronized void setTempFilePrefix(String tempFilePrefix) {
+      _tempFilePrefix = tempFilePrefix; 
     }
   }
