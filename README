@@ -1,0 +1,45 @@
+
+Example of use with Text responses
+
+HttpRequest req = new HttpRequest(HttpMethod.POST, url);
+req.timeout = 30000;
+req.requestParamList.add(new KeyValueRequestItem("random", random));
+	
+httpCall = new HttpCall(req);
+    
+// makes sure the content is returned as text
+httpCall.responseType = ResponseType.TEXT;
+
+httpCall.call();
+
+if(httpCall.httpResponse.responseCode < 200 || httpCall.httpResponse.responseCode > 299)
+  throw new Exception("Server returned error code: " + httpCall.httpResponse.responseCode);
+
+// the result is encrypted
+EncryptedResponse encResp  = null;
+
+TextResponseBody textRespBody = (TextResponseBody) httpCall.httpResponse.responseBody;
+
+String textResponse = textRespBody.getText()
+
+
+Example of use with File Download
+
+// Just change:
+
+// makes sure the content is saved in a temporary file
+httpCall.responseType = ResponseType.FILE;
+
+//then
+
+FileResponseBody fileResponseBody = (FileResponseBody) httpResp.responseBody;
+
+// or
+httpCall.responseType = ResponseType.BYTE_ARRAY;
+
+// then
+
+ByteArrayResponseBody byteArrayRespBody = (ByteArrayResponseBody) httpResp.responseBody;
+
+byteArrayRespBody.getByteArray();
+byteArrayRespBody.getByteArrayInputStream();
