@@ -5,11 +5,7 @@
 
 package it.holiday69.tinyhttp.vo.request;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 
 /**
  *
@@ -31,6 +27,10 @@ public class FileUploadRequestItem implements RequestItem {
     _name = "" + name;
     _size = srcByteArray.length;
     _inputStream = new ByteArrayInputStream(srcByteArray);
+  }
+  
+  public FileUploadRequestItem() {
+    
   }
   
   public String getName() { return _name; }

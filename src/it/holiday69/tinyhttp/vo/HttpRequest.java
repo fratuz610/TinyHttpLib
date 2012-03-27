@@ -16,6 +16,10 @@ import java.util.List;
  */
 public class HttpRequest {
   
+  public HttpRequest() { 
+    
+  }
+  
   public HttpRequest(HttpMethod method, String url) { 
     this.method = method;
     this.url = url; 
@@ -36,5 +40,8 @@ public class HttpRequest {
     
     if(StringUtils.isEmpty(url))
       throw new Exception("The call URL must be specified");
+    
+    if(timeout < 0)
+      throw new Exception("The timeout value cannot be negative");
   }
 }

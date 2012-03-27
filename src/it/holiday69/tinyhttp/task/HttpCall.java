@@ -20,6 +20,7 @@ import it.holiday69.tinyhttp.vo.ProxyObject;
 import it.holiday69.tinyhttp.vo.request.FileUploadRequestItem;
 import it.holiday69.tinyhttp.vo.request.RequestItem;
 import it.holiday69.tinyhttp.vo.request.KeyValueRequestItem;
+import it.holiday69.tinyhttp.vo.request.RawDataRequestItem;
 import it.holiday69.tinyhttp.vo.response.ByteArrayResponseBody;
 import it.holiday69.tinyhttp.vo.response.FileResponseBody;
 import it.holiday69.tinyhttp.vo.response.TextResponseBody;
@@ -112,11 +113,14 @@ public class HttpCall extends AbstractHttpCall {
           }
         }
 
-        // starts the timeout thread
-        timeoutThread = new Thread(new HttpTimeoutTask(urlConn, httpRequest.timeout, interruptFlag));
-        timeoutThread.start();
-        
-        debug.log("Timeout thread started");
+        // starts the timeout thread if necessary
+        if(httpRequest.timeout > 0) {
+          debug.log("Timeout set to " + httpRequest.timeout + " millisec, starting timeout thread");
+          timeoutThread = new Thread(new HttpTimeoutTask(urlConn, httpRequest.timeout, interruptFlag));
+          timeoutThread.start();
+        } else {
+          debug.log("No timeout in use");
+        }
         
         // for sure we always need to get some data back
         urlConn.setReadTimeout(httpRequest.timeout);
@@ -179,7 +183,10 @@ public class HttpCall extends AbstractHttpCall {
       } finally {
         
         // stops the timeout thread
-        try { timeoutThread.interrupt(); } catch(Throwable th) { }
+        try { 
+          if(timeoutThread != null)
+            timeoutThread.interrupt(); 
+        } catch(Throwable th) { }
         
         // sets the call as completed
         callCompleted = true; 
@@ -233,6 +240,18 @@ public class HttpCall extends AbstractHttpCall {
       // we send the POST data here
       urlConn.setDoOutput(true);
       
+      boolean rawDataRequest = false;
+      
+      for(RequestItem reqItem : httpRequest.requestParamList) {
+        if(reqItem instanceof RawDataRequestItem)
+          rawDataRequest = true;
+      }
+      
+      if(rawDataRequest) {
+        sendRawDataRequest(urlConn, httpRequest);
+        return;
+      } 
+      
       // we determine if the request has only Key/Value parameters
       
       boolean pureKeyValueRequest = true;
@@ -247,6 +266,42 @@ public class HttpCall extends AbstractHttpCall {
       else
         sendMultipartFormDataRequest(urlConn, httpRequest);
       
+    }
+    
+    private void sendRawDataRequest(HttpURLConnection urlConn, HttpRequest httpRequest) throws Exception {
+      
+      String rawData = null;
+      
+      for(RequestItem reqItem : httpRequest.requestParamList) {
+        if(reqItem instanceof RawDataRequestItem) {
+          rawData = ((RawDataRequestItem) reqItem).getRawData();
+          break;
+        }
+      }
+      
+      if(rawData == null)
+        throw new Exception("Internal error: sendRawDataRequest didn't find any RawDataRequestItem items");
+      
+      debug.log("Sending body with raw data: " + rawData.length() + " bytes");
+      
+      // updates for monitoring
+      bytesUploadTotal.set(rawData.length());
+      
+      DataOutputStream output = null;
+      try {
+        // Send POST data
+        output = new DataOutputStream ( urlConn.getOutputStream ());
+        output.writeBytes (rawData);
+        output.flush ();
+      
+      } finally {
+        if(output != null) output.close();
+      }
+      
+      // updates for monitoring
+      bytesUploadTotal.set(rawData.length());
+      
+      debug.log("Raw data sent");
     }
     
     private void sendFormUrlEncodedRequest(HttpURLConnection urlConn, HttpRequest httpRequest) throws Exception {
@@ -314,6 +369,8 @@ public class HttpCall extends AbstractHttpCall {
           
           KeyValueRequestItem keyValueReqItem = (KeyValueRequestItem) reqItem;
           
+          obj.itemToUpload = keyValueReqItem;
+          
           debug.log("Processing form data request item: " + keyValueReqItem.key + " => " + keyValueReqItem.value);
           
           // creates the message header
@@ -321,15 +378,14 @@ public class HttpCall extends AbstractHttpCall {
           obj.headerMessage += "--" + randomDelimiter + CR_LF; 
           obj.headerMessage += "Content-Disposition: form-data; name=\""+keyValueReqItem.key+"\""+ CR_LF;
           obj.headerMessage += CR_LF;
-          obj.headerMessage += keyValueReqItem.value + CR_LF;
-          
-          //obj.footerMessage = CR_LF + "--" + randomDelimiter + CR_LF;
-          
-          aggregateContentLength += obj.headerMessage.length() + keyValueReqItem.value.length();
+                    
+          aggregateContentLength += obj.headerMessage.length() + keyValueReqItem.value.getBytes().length + CR_LF.length();
           
         } else if(reqItem instanceof FileUploadRequestItem) {
           
           FileUploadRequestItem uploadReqItem = (FileUploadRequestItem) reqItem;
+          
+          obj.itemToUpload = uploadReqItem;
           
           debug.log("Processing FileUpload request item: " + uploadReqItem.getName());
           
@@ -346,20 +402,15 @@ public class HttpCall extends AbstractHttpCall {
           obj.headerMessage += "Content-Transfer-Encoding: binary"+ CR_LF; 
           obj.headerMessage += CR_LF;
 
-          // creates the message footer
-          //obj.footerMessage = CR_LF + "--" + randomDelimiter + CR_LF;
-
-          obj.itemToUpload = uploadReqItem;
-
-          aggregateContentLength += obj.headerMessage.length() + uploadReqItem.getSize();
-
+          aggregateContentLength += obj.headerMessage.length() + uploadReqItem.getSize() + CR_LF.length();
         }
         
         httpUploadList.add(obj);
         
+        debug.log("In total we have " + httpUploadList.size() + " mime parts to send");
       }
       
-      String footerMessage = CR_LF + "--" + randomDelimiter + "--";
+      String footerMessage = "--" + randomDelimiter + "--";
       
       aggregateContentLength += footerMessage.length();
       
@@ -399,6 +450,8 @@ public class HttpCall extends AbstractHttpCall {
             
             new IOHelper().copy(fileUploadReqItem.getInputStream(), output, bytesUploadCount, bytesUploadSpeed);
             
+            output.write(CR_LF.getBytes());
+            
             output.flush(); 
             
             debug.log("File data for "+ fileUploadReqItem.getName() +" uploaded");
@@ -416,10 +469,10 @@ public class HttpCall extends AbstractHttpCall {
             
             bytesUploadCount.addAndGet(uploadObject.headerMessage.length());
             
-            // let's write the body
-            output.write(keyValueReqItem.value.getBytes()); 
+            // let's write the text value
+            output.write((keyValueReqItem.value + CR_LF).getBytes()); 
             
-            bytesUploadCount.addAndGet(keyValueReqItem.value.length());
+            bytesUploadCount.addAndGet((keyValueReqItem.value + CR_LF).length());
             
             output.flush(); 
             
@@ -428,11 +481,10 @@ public class HttpCall extends AbstractHttpCall {
           
         }
         
-        // let's write the footer
-        output.write(footerMessage.getBytes()); 
-
+        output.write(footerMessage.getBytes());
+        
         // updates for monitoring
-        bytesUploadCount.set(bytesUploadTotal.get());
+        bytesUploadCount.addAndGet(footerMessage.getBytes().length);
 
         debug.log("Multipart upload complete");
         

@@ -13,6 +13,10 @@ import it.holiday69.tinyhttp.vo.KeyValuePair;
  */
 public class KeyValueRequestItem extends KeyValuePair implements RequestItem {
   
+  public KeyValueRequestItem() {
+    super();
+  }
+  
   public KeyValueRequestItem(String key, String value) {
     super(key, value);
   }
