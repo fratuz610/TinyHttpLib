@@ -5,10 +5,12 @@
 
 package it.holiday69.tinyhttp.vo.request;
 
+import java.io.Serializable;
+
 /**
  *
  * @author Stefano Fratini <stefano.fratini@yeahpoint.com>
  */
-public interface RequestItem {
+public interface RequestItem extends Serializable {
 
 }

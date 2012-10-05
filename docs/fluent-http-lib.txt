@@ -1,0 +1,40 @@
+
+HttpRequest req = new HttpRequest()
+						.withMethod(Get.class)
+						.withURL("http://hello.com")
+						.withTimeout(30)
+						.withFollowRedirects();
+						.withHeader(string key, string val)
+						.withParam(new FileUploadParam(File file))
+						.withParam(String key, String value)
+						.withParam(String rawData)
+						
+
+HttpResponse<TextResponse> resp = new HttpCall<TextResponse>(req)
+						.withProxy("username:password@address:port")
+						.withProxy("address:port")
+						.call();
+						
+
+if TextResponse
+resp.getResponseCode();
+resp.getResponseType();
+resp.getResponseLength();
+resp.getResponseHeaders(); // List of "KeyValuePair"
+resp.getText(); 
+
+if ByteArrayResponse
+resp.getResponseCode();
+resp.getResponseType();
+resp.getResponseLength();
+resp.getResponseHeaders(); // List of "KeyValuePair"
+resp.getByteArray(); 
+resp.getByteArrayInputStream(); 
+
+if FileResponse
+resp.getResponseCode();
+resp.getResponseType();
+resp.getResponseLength();
+resp.getResponseHeaders(); // List of "KeyValuePair"
+resp.getByteArray(); 
+resp.getByteArrayInputStream(); 

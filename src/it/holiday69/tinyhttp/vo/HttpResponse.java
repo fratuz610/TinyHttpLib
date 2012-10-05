@@ -7,6 +7,7 @@ package it.holiday69.tinyhttp.vo;
 
 import it.holiday69.tinyhttp.vo.response.ResponseBody;
 import java.io.File;
+import java.io.Serializable;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -14,7 +15,7 @@ import java.util.List;
  *
  * @author Stefano Fratini <stefano.fratini@yeahpoint.com>
  */
-public class HttpResponse {
+public class HttpResponse implements Serializable {
   
   public int responseCode;
   

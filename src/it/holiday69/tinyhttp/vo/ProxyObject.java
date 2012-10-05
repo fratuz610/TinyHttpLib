@@ -5,11 +5,13 @@
 
 package it.holiday69.tinyhttp.vo;
 
+import java.io.Serializable;
+
 /**
  *
  * @author Stefano Fratini <stefano.fratini@yeahpoint.com>
  */
-public class ProxyObject {
+public class ProxyObject implements Serializable {
 
   public String host;
   public int port;

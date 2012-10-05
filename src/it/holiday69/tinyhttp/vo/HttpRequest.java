@@ -7,6 +7,7 @@ package it.holiday69.tinyhttp.vo;
 
 import it.holiday69.tinyhttp.utils.StringUtils;
 import it.holiday69.tinyhttp.vo.request.RequestItem;
+import java.io.Serializable;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -14,7 +15,7 @@ import java.util.List;
  *
  * @author Stefano Fratini <stefano.fratini@yeahpoint.com>
  */
-public class HttpRequest {
+public class HttpRequest implements Serializable {
   
   public HttpRequest() { 
     

@@ -5,11 +5,13 @@
 
 package it.holiday69.tinyhttp.vo;
 
+import java.io.Serializable;
+
 /**
  *
  * @author Stefano Fratini <stefano.fratini@yeahpoint.com>
  */
-public class KeyValuePair {
+public class KeyValuePair implements Serializable {
 
   public String key;
   public String value;

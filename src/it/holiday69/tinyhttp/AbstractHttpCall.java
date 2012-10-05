@@ -91,16 +91,6 @@ public abstract class AbstractHttpCall implements Callable<Void> {
   protected ProxyObject _proxyObj;
   
   
-  public AbstractHttpCall(HttpRequest httpReq) throws Exception {
-    this(httpReq, null);
-  }
-  
-  public AbstractHttpCall(HttpRequest httpReq, ProxyObject proxyObj) throws Exception {
-    httpReq.validate();
-    httpRequest = httpReq;
-    _proxyObj = proxyObj;
-  }
-  
   @Override
   public abstract Void call() throws Exception;
     

@@ -50,11 +50,41 @@ public class HttpCall extends AbstractHttpCall {
     private final String CR_LF = "\r\n";
     
     public HttpCall(HttpRequest httpReq) throws Exception {
-      super(httpReq, null);
+      this(httpReq, null);
+    }
+    
+    public HttpCall(HttpRequest httpReq, String proxyHost, int proxyPort, String proxyUsername, String proxyPassword) throws Exception {
+      
+      this(httpReq, null);
+      
+      ProxyObject proxyObj = new ProxyObject();
+      proxyObj.host = proxyHost;
+      proxyObj.port = proxyPort;
+      proxyObj.username = proxyUsername;
+      proxyObj.password = proxyPassword;
+      
+      _proxyObj = proxyObj;
+    }
+    
+    public HttpCall(HttpRequest httpReq, String proxyHost, int proxyPort) throws Exception {
+      
+      this(httpReq, null);
+      
+      ProxyObject proxyObj = new ProxyObject();
+      proxyObj.host = proxyHost;
+      proxyObj.port = proxyPort;
+      proxyObj.username = null;
+      proxyObj.password = null;
+      
+      _proxyObj = proxyObj;
     }
     
     public HttpCall(HttpRequest httpReq, ProxyObject proxyObj) throws Exception {
-      super(httpReq, proxyObj);
+      
+      httpReq.validate();
+      httpRequest = httpReq;
+      _proxyObj = proxyObj;
+      
     }
     
     private final DebugHelper debug = new DebugHelper();
