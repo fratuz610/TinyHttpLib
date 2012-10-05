@@ -10,7 +10,7 @@ HttpRequest req = new HttpRequest()
 						.withParam(String rawData)
 						
 
-HttpResponse<TextResponse> resp = new HttpCall<TextResponse>(req)
+TextResponse resp = new HttpCall<TextResponse>(req)
 						.withProxy("username:password@address:port")
 						.withProxy("address:port")
 						.call();
