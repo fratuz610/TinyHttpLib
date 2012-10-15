@@ -1,3 +1,5 @@
+A tiny http library for Java: 50kb
+
 HttpRequest req = new HttpRequest()
                         .withMethod(Get.class)
                         .withURL("http://hello.com")
@@ -39,3 +41,5 @@ resp.getResponseLength();
 resp.getResponseHeaders(); // List of "KeyValuePair"
 resp.getByteArray(); 
 resp.getByteArrayInputStream();
+
+For more info see: http://www.bitsandpieces.it/wp/?p=92
