@@ -1,45 +1,41 @@
+HttpRequest req = new HttpRequest()
+                        .withMethod(Get.class)
+                        .withURL("http://hello.com")
+                        .withTimeout(30)
+                        .withFollowRedirects();
+                        .withHeader(string key, string val)
+                        .withParam(new FileUploadParam(File file)) // If we want to upload a file
+                        .withParam(String key, String value) // usual param passing
+                        .withParam(String rawData) // if you need to do SOAP or RESTFul POST/PUT calls
+                        
+// If we expect the response to be a string
+TextResponse resp = new HttpCall<TextResponse>(req).call();
 
-Example of use with Text responses
+// If we need to use a proxy (only Basic AUTH is supported)
+TextResponse resp = new HttpCall<TextResponse>(req)
+                        .withProxy("username:password@address:port")
+                        .withProxy("address:port")
+                        .call();
 
-HttpRequest req = new HttpRequest(HttpMethod.POST, url);
-req.timeout = 30000;
-req.requestParamList.add(new KeyValueRequestItem("random", random));
-	
-httpCall = new HttpCall(req);
-    
-// makes sure the content is returned as text
-httpCall.responseType = ResponseType.TEXT;
+// TextResponse Object
+resp.getResponseCode();
+resp.getResponseType();
+resp.getResponseLength();
+resp.getResponseHeaders(); // List of "KeyValuePair"
+resp.getText(); 
 
-httpCall.call();
+// if ByteArrayResponse
+resp.getResponseCode();
+resp.getResponseType();
+resp.getResponseLength();
+resp.getResponseHeaders(); // List of "KeyValuePair"
+resp.getByteArray(); 
+resp.getByteArrayInputStream(); 
 
-if(httpCall.httpResponse.responseCode < 200 || httpCall.httpResponse.responseCode > 299)
-  throw new Exception("Server returned error code: " + httpCall.httpResponse.responseCode);
-
-// the result is encrypted
-EncryptedResponse encResp  = null;
-
-TextResponseBody textRespBody = (TextResponseBody) httpCall.httpResponse.responseBody;
-
-String textResponse = textRespBody.getText()
-
-
-Example of use with File Download
-
-// Just change:
-
-// makes sure the content is saved in a temporary file
-httpCall.responseType = ResponseType.FILE;
-
-//then
-
-FileResponseBody fileResponseBody = (FileResponseBody) httpResp.responseBody;
-
-// or
-httpCall.responseType = ResponseType.BYTE_ARRAY;
-
-// then
-
-ByteArrayResponseBody byteArrayRespBody = (ByteArrayResponseBody) httpResp.responseBody;
-
-byteArrayRespBody.getByteArray();
-byteArrayRespBody.getByteArrayInputStream();
+// if FileResponse
+resp.getResponseCode();
+resp.getResponseType();
+resp.getResponseLength();
+resp.getResponseHeaders(); // List of "KeyValuePair"
+resp.getByteArray(); 
+resp.getByteArrayInputStream();

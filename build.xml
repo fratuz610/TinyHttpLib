@@ -74,7 +74,7 @@
     
     <target name="shared-jar" depends="clean,jar">
 
-        <move file="${dist.jar}" tofile="../yeahpoint/shared-java-libs/TinyHttpLib/TinyHttpLib.jar"/>
+        <move file="${dist.jar}" tofile="../../java/shared-libs/TinyHttpLib/TinyHttpLib-2.0.jar"/>
         
     </target>
 </project>

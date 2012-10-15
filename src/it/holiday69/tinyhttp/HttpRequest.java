@@ -13,6 +13,7 @@ import it.holiday69.tinyhttp.request.RawDataParam;
 import it.holiday69.tinyhttp.shared.HttpHeader;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ThreadFactory;
 
 /**
  *
@@ -23,6 +24,7 @@ public class HttpRequest {
   private Class<? extends Method> method = Get.class;
   private String url;
   private int timeout = 0;
+  private ThreadFactory timeoutTf = null;
   private boolean followRedirects = false;
   private final List<HttpHeader> headerList = new LinkedList<HttpHeader>();
   private final List<HttpParam> paramList = new LinkedList<HttpParam>();
@@ -30,6 +32,8 @@ public class HttpRequest {
   public HttpRequest withMethod(Class<? extends Method> method) { this.method = method; return this; }
   
   public HttpRequest withURL(String url) { this.url = url; return this; }
+  
+  public HttpRequest withTimeoutThreadFactory(ThreadFactory timeoutTf) { this.timeoutTf = timeoutTf; return this; }
   
   public HttpRequest withTimeout(int timeout) { this.timeout = timeout; return this; }
   
@@ -47,6 +51,7 @@ public class HttpRequest {
   public Class<? extends Method> getMethod() { return this.method; }
   public String getURL() { return url; }
   public int getTimeout() { return timeout; }
+  public ThreadFactory getTimeoutThreadFactory() { return timeoutTf; }
   public boolean getFollowRedirects() { return followRedirects; }
   public List<HttpHeader> getHeaderList() { return headerList; }
   public List<HttpParam> getParamList() { return paramList; }

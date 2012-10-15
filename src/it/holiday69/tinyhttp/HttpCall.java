@@ -176,8 +176,16 @@ public class HttpCall<T extends HttpResponse> implements Callable<T> {
       // starts the timeout thread if necessary
       if(httpRequest.getTimeout() > 0) {
         debug.log("Timeout set to " + httpRequest.getTimeout() + " millisec, starting timeout thread");
-        timeoutThread = new Thread(new HttpTimeoutTask(urlConn, httpRequest.getTimeout()*1000, interruptFlag));
+        
+        HttpTimeoutTask timeoutTask = new HttpTimeoutTask(urlConn, httpRequest.getTimeout()*1000, interruptFlag);
+        
+        if(httpRequest.getTimeoutThreadFactory() != null)
+          timeoutThread = httpRequest.getTimeoutThreadFactory().newThread(timeoutTask);
+        else
+          timeoutThread = new Thread(timeoutTask);
+        
         timeoutThread.start();
+        
       } else {
         debug.log("No timeout in use");
       }
