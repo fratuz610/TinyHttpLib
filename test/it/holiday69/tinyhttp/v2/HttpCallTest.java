@@ -4,20 +4,19 @@
  */
 package it.holiday69.tinyhttp.v2;
 
-import it.holiday69.tinyhttp.HttpRequest;
 import it.holiday69.tinyhttp.HttpCall;
+import it.holiday69.tinyhttp.HttpRequest;
 import it.holiday69.tinyhttp.internal.utils.ExceptionUtils;
 import it.holiday69.tinyhttp.internal.utils.IOHelper;
 import it.holiday69.tinyhttp.method.Post;
 import it.holiday69.tinyhttp.request.FileUploadParam;
 import it.holiday69.tinyhttp.response.ByteArrayResponse;
-import it.holiday69.tinyhttp.response.HttpResponse;
 import it.holiday69.tinyhttp.response.TextResponse;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import org.junit.Test;
 import static org.junit.Assert.*;
+import org.junit.Test;
 
 /**
  *

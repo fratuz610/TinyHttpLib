@@ -1,39 +1,34 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package it.holiday69.tinyhttp.response;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.UUID;
 
-/**
- *
- * @author fratuz610
- */
-public class TempFileResponse extends HttpResponse {
-  
+public class TempFileResponse extends HttpResponse
+{
   private File _file;
   private FileOutputStream _out;
-  
-  public TempFileResponse(File file) throws IOException { 
-    _out = new FileOutputStream(file); 
+
+  public TempFileResponse(File file)
+    throws IOException
+  {
+    _out = new FileOutputStream(file);
     _file = file;
   }
-  
+
   public TempFileResponse(String prefix, String postfix) throws IOException {
     this(File.createTempFile(prefix, postfix));
   }
-  
+
   public TempFileResponse() throws IOException {
-    this(File.createTempFile("", ""));
+    this(File.createTempFile(UUID.randomUUID().toString().substring(0, 6), ""));
   }
-    
-  @Override
-  public OutputStream getOutputStream() { return _out; }
-  
+
+  public OutputStream getOutputStream() {
+    return _out;
+  }
   public File getFile() { return _file; }
-  
+
 }
