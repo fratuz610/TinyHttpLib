@@ -23,7 +23,7 @@ public class TempFileResponse extends HttpResponse
   }
 
   public TempFileResponse() throws IOException {
-    this(File.createTempFile(UUID.randomUUID().toString().substring(0, 6), ""));
+    this(File.createTempFile(UUID.randomUUID().toString().substring(0, 6), null));
   }
 
   public OutputStream getOutputStream() {
